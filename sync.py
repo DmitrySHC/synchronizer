@@ -72,24 +72,22 @@ def check(src, dst):
     meta_src = make_meta(src=src)
     meta_dst = make_meta(src=dst)
 
-    if len(meta_src.keys()) == len(meta_dst.keys()):
-        for file_s_hash, file_d_hash in zip(meta_src.values(), meta_dst.values()):
-            if file_s_hash != file_d_hash:
-                return False
-    else:
+    if len(meta_src.keys()) != len(meta_dst.keys()):
         return False
 
-    if len(tree_src) == len(tree_dst):
-        for source, target in zip(tree_src, tree_dst):
-            if len(source[1]) == len(target[1]):
-                for dir_s, dir_t in zip(source[1], target[1]):
-                    if dir_s != dir_t:
-                        return False
-            else:
-                return False
-    else:
+    for file_s_hash, file_d_hash in zip(meta_src.values(), meta_dst.values()):
+        if file_s_hash != file_d_hash:
+            return False
+
+    if len(tree_src) != len(tree_dst):
         return False
 
+    for source, target in zip(tree_src, tree_dst):
+        if len(source[1]) != len(target[1]):
+            return False
+        for dir_s, dir_t in zip(source[1], target[1]):
+            if dir_s != dir_t:
+                return False
     return True
 
 
@@ -128,7 +126,7 @@ def sync_dirs(src: str, dst: str, meta: dict, tree: list, new_meta=None, new_tre
 
 def main():
     try:
-        source, destination, interval, logs = (int(elem) if elem.isdigit() else elem for elem in sys.argv[1:])
+        source, destination, logs, interval = (int(elem) if elem.isdigit() else elem for elem in sys.argv[1:])
     except ValueError:
         print("Invalid number of arguments!")
         return
