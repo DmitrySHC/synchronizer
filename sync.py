@@ -21,18 +21,16 @@ def signal_handler(signal, frame):
     RUN = False
 
 
-def make_meta(src, meta=None):
-    """creating metadata dictionary"""
-    if meta is None:
-        meta = {}
-    for name in os.listdir(src):
-        path = os.path.join(src, name)
-        if not os.path.isfile(path):
-            make_meta(path, meta)
-        else:
-            with open(path, mode='rb') as f:
-                meta[path] = hashlib.md5(f.read()).hexdigest()
-    return meta
+def make_set(path):
+    path_set = set()
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            path_to_file = os.path.relpath(path=os.path.join(root, file), start=path)
+            path_set.add(path_to_file)
+        for directory in dirs:
+            path_to_dir = os.path.relpath(path=os.path.join(root, directory), start=path)
+            path_set.add(path_to_dir)
+    return path_set
 
 
 def make_tree(src):
@@ -58,70 +56,73 @@ def del_file_and_dir(deleted):
 
 
 def copy(src, dst):
-    if os.path.exists(src):
-        shutil.copy(src, dst)
-        logging.info(msg=f'File "{os.path.basename(src)}" coped from '
-                         f'"{os.path.dirname(src)}" to "{os.path.dirname(dst)}"')
+    shutil.copyfile(src, dst)
+    logging.info(msg=f'File "{os.path.basename(src)}" coped from "{os.path.dirname(src)}" to "{os.path.dirname(dst)}"')
 
 
 def check(src, dst):
     """checking the identity of directories"""
     logging.info(msg='Checking...')
-    tree_src = make_tree(src=src)
-    tree_dst = make_tree(src=src)
-    meta_src = make_meta(src=src)
-    meta_dst = make_meta(src=dst)
 
-    if len(meta_src.keys()) != len(meta_dst.keys()):
+    set_s = make_set(src)
+    set_d = make_set(dst)
+
+    if len(set_d - set_s):
         return False
 
-    for file_s_hash, file_d_hash in zip(meta_src.values(), meta_dst.values()):
-        if file_s_hash != file_d_hash:
-            return False
-
-    if len(tree_src) != len(tree_dst):
+    if len(set_s - set_d):
         return False
 
-    for source, target in zip(tree_src, tree_dst):
-        if len(source[1]) != len(target[1]):
-            return False
-        for dir_s, dir_t in zip(source[1], target[1]):
-            if dir_s != dir_t:
-                return False
+    for element in set_s & set_d:
+        if os.path.isfile(os.path.join(dst, element)):
+            path_s = os.path.join(src, element)
+            path_d = os.path.join(dst, element)
+            with open(path_s, mode='rb') as file_s, open(path_d, mode='rb') as file_d:
+                if hashlib.md5(file_s.read()).hexdigest() != hashlib.md5(file_d.read()).hexdigest():
+                    return False
     return True
 
 
-def sync_dirs(src: str, dst: str, meta: dict, tree: list, new_meta=None, new_tree=None):
+def sync_dirs(src: str, dst: str):
     """directory synchronization"""
     logging.info(f'Update information...')
-    if new_meta is None:
-        new_meta = make_meta(src)
+    if not os.path.exists(dst):
+        os.mkdir(dst)
 
-    if new_tree is None:
-        new_tree = make_tree(src)
+    set_s = make_set(src)
+    set_d = make_set(dst)
+    delete_list = []
+    create_list = []
+    check_set = set_s & set_d
 
-    for element in tree:
-        root, files = element[::2]
-        new_root = root.replace(src, dst)
-        if not os.path.exists(new_root) and os.path.exists(root):
-            os.mkdir(new_root)
-            logging.info(msg=f'Create directory "{new_root}"')
+    for element in check_set:
+        if os.path.isfile(os.path.join(dst, element)):
+            path_s = os.path.join(src, element)
+            path_d = os.path.join(dst, element)
+            with open(path_s, mode='rb') as file_s, open(path_d, mode='rb') as file_d:
+                if hashlib.md5(file_s.read()).hexdigest() != hashlib.md5(file_d.read()).hexdigest():
+                    delete_list.append(element)
+                    create_list.append(element)
 
-        for file in files:
-            new_path_to_file = os.path.join(new_root, file)
-            old_path_to_file = os.path.join(root, file)
+    delete_list.extend(set_d - set_s)
+    delete_list.sort(reverse=True)
+    create_list.extend(set_s - set_d)
+    create_list.sort()
 
-            if old_path_to_file in new_meta and not os.path.exists(new_path_to_file):
-                copy(src=old_path_to_file, dst=new_path_to_file)
-            elif os.path.exists(new_path_to_file) and not os.path.exists(old_path_to_file):
-                del_file_and_dir(new_path_to_file)
-            elif old_path_to_file in new_meta and meta[old_path_to_file] != new_meta[old_path_to_file]:
-                copy(src=old_path_to_file, dst=new_path_to_file)
+    for element in delete_list:
+        path_to_delete = os.path.join(dst, element)
+        if os.path.exists(path_to_delete):
+            del_file_and_dir(path_to_delete)
 
-        if os.path.exists(new_root) and not os.path.exists(root):
-            del_file_and_dir(new_root)
-
-    return new_meta, new_tree
+    for element in create_list:
+        path_to_copy = os.path.join(src, element)
+        path_to_create = os.path.join(dst, element)
+        if os.path.isdir(path_to_copy):
+            os.mkdir(path_to_create)
+            logging.info(msg=f'Create directory "{path_to_create}"')
+        else:
+            copy(path_to_copy, path_to_create)
+    return
 
 
 def main():
@@ -142,19 +143,17 @@ def main():
                         level=logging.INFO,
                         handlers=[
                             logging.StreamHandler(stream=sys.stdout),
-                            logging.FileHandler(path_log, mode='a')
+                            logging.FileHandler(path_log, mode='a', encoding='utf-8')
                         ],)
 
     signal.signal(signal.SIGINT, signal_handler)
     logging.info(f'Start sync "{os.path.abspath(source)}" and "{os.path.abspath(destination)}"')
 
-    meta = make_meta(source)
-    tree = make_tree(source)
     while RUN:
-        meta, tree = sync_dirs(src=source, dst=destination, meta=meta, tree=tree)
+        sync_dirs(src=source, dst=destination)
         if not check(src=source, dst=destination):
             logging.info('Resynchronization...')
-            meta, tree = sync_dirs(src=source, dst=destination, meta=meta, tree=tree)
+            sync_dirs(src=source, dst=destination)
         logging.info(f'Synchronization complete. '
                      f'Next in {(datetime.now() + timedelta(seconds=interval)).time().strftime("%H:%M:%S")}')
         time.sleep(interval)

@@ -29,8 +29,6 @@ def test_empty_folder():
     sync_dirs(
         src=source,
         dst=target,
-        meta=make_meta(src=source),
-        tree=make_tree(src=source)
     )
     assert check(source, target), 'Folders are not identical!'
     if DEL_AFTER_TEST:
@@ -45,8 +43,6 @@ def test_with_file():
     sync_dirs(
         src=source,
         dst=target,
-        meta=make_meta(src=source),
-        tree=make_tree(src=source)
     )
     assert check(source, target), 'Folders are not identical!'
     if DEL_AFTER_TEST:
@@ -58,11 +54,9 @@ def test_file_edit():
     source = make_test_folder(name='test_source')
     target = make_test_folder(name='test_target')
     path_to_file = make_test_file(path=source, name='test.txt')
-    meta, tree = sync_dirs(
+    sync_dirs(
         src=source,
         dst=target,
-        meta=make_meta(src=source),
-        tree=make_tree(src=source)
     )
     assert check(source, target), 'Folders are not identical!'
 
@@ -72,8 +66,6 @@ def test_file_edit():
     sync_dirs(
         src=source,
         dst=target,
-        meta=meta,
-        tree=tree
     )
     assert check(source, target), 'Folders are not identical after edit!'
 
@@ -86,11 +78,9 @@ def test_file_remove():
     source = make_test_folder(name='test_source')
     target = make_test_folder(name='test_target')
     path_to_file = make_test_file(path=source, name='test.txt')
-    meta, tree = sync_dirs(
+    sync_dirs(
         src=source,
         dst=target,
-        meta=make_meta(src=source),
-        tree=make_tree(src=source)
     )
     assert check(source, target), 'Folders are not identical!'
 
@@ -98,8 +88,6 @@ def test_file_remove():
     sync_dirs(
         src=source,
         dst=target,
-        meta=meta,
-        tree=tree
     )
     assert check(source, target), 'Folders are not identical after remove!'
     if DEL_AFTER_TEST:
