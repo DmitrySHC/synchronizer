@@ -1,15 +1,16 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, timedelta
+import argparse
 import hashlib
+import logging
 import os
+import signal
 import shutil
 import stat
-import time
-import logging
 import sys
-import signal
+import time
+from datetime import datetime, timedelta
 
 RUN = True
 
@@ -85,10 +86,11 @@ def check(src, dst):
 
 def sync_dirs(src: str, dst: str):
     """directory synchronization"""
-    logging.info(f'Update information...')
     if not os.path.exists(dst):
         os.mkdir(dst)
+        logging.info(msg=f'Create directory "{dst}"')
 
+    logging.info(f'Update information...')
     set_s = make_set(src)
     set_d = make_set(dst)
     delete_list = []
@@ -126,15 +128,16 @@ def sync_dirs(src: str, dst: str):
 
 
 def main():
-    try:
-        source, destination, logs, interval = (int(elem) if elem.isdigit() else elem for elem in sys.argv[1:])
-    except ValueError:
-        print("Invalid number of arguments!")
-        return
+    parser = argparse.ArgumentParser()
+    parser.add_argument('source', help='Path to the folder you want to track')
+    parser.add_argument('target', help='Path to the replica folder')
+    parser.add_argument('log', help='Path to the logs')
+    parser.add_argument('interval', help='Synchronization interval (in seconds)', type=int)
+    args = parser.parse_args()
 
-    source = os.path.abspath(source)
-    destination = os.path.abspath(destination)
-    logs = os.path.abspath(logs)
+    source = os.path.abspath(args.source)
+    destination = os.path.abspath(args.target)
+    logs = os.path.abspath(args.log)
     path_log = os.path.join(logs, 'logs.txt')
     os.makedirs(logs, exist_ok=True)
 
@@ -144,7 +147,7 @@ def main():
                         handlers=[
                             logging.StreamHandler(stream=sys.stdout),
                             logging.FileHandler(path_log, mode='a', encoding='utf-8')
-                        ],)
+                        ], )
 
     signal.signal(signal.SIGINT, signal_handler)
     logging.info(f'Start sync "{os.path.abspath(source)}" and "{os.path.abspath(destination)}"')
@@ -155,8 +158,8 @@ def main():
             logging.info('Resynchronization...')
             sync_dirs(src=source, dst=destination)
         logging.info(f'Synchronization complete. '
-                     f'Next in {(datetime.now() + timedelta(seconds=interval)).time().strftime("%H:%M:%S")}')
-        time.sleep(interval)
+                     f'Next in {(datetime.now() + timedelta(seconds=args.interval)).time().strftime("%H:%M:%S")}')
+        time.sleep(args.interval)
 
 
 if __name__ == '__main__':

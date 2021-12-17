@@ -1,6 +1,7 @@
 import os
-from sync import sync_dirs, make_meta, make_tree, check
 import shutil
+from sync import sync_dirs, check
+
 
 DEL_AFTER_TEST = True
 
